@@ -3,7 +3,7 @@ import pygame
 import os
 import copy
 
-WIN_WIDTH=500
+WIN_WIDTH=800
 WIN_HEIGHT=800
 
 FRAME_RATE=30
@@ -11,18 +11,19 @@ FRAME_RATE=30
 local_dir=os.path.dirname(__file__)
 images_dir=os.path.join(local_dir,"images")
 
-SMALL_MARIO_FACTOR=1
-BIG_MARIO_FACTOR=1
-PLATFORM_FACTOR=1
-KOOPA_FACTOR=1
-BG_FACTOR=1
-COIN_FACTOR=1
-MUSHROOM_FACTOR=1
-GOOMBA_FACTOR=1
-PIPE_FACTOR=1
-BLOCK_FACTOR=1
-CASTLE_FACTOR=1
-FLAG_FACTOR=1
+COMMON_FACTOR=3
+SMALL_MARIO_FACTOR=COMMON_FACTOR
+BIG_MARIO_FACTOR=COMMON_FACTOR
+PLATFORM_FACTOR=COMMON_FACTOR
+KOOPA_FACTOR=COMMON_FACTOR
+BG_FACTOR=COMMON_FACTOR
+COIN_FACTOR=COMMON_FACTOR
+MUSHROOM_FACTOR=COMMON_FACTOR
+GOOMBA_FACTOR=COMMON_FACTOR
+PIPE_FACTOR=COMMON_FACTOR
+BLOCK_FACTOR=COMMON_FACTOR
+CASTLE_FACTOR=COMMON_FACTOR
+FLAG_FACTOR=COMMON_FACTOR
 
 SMALL_MARIO_IMGS=[pygame.transform.scale_by(pygame.image.load(os.path.join(images_dir,"Mario_Small_Idle.png")),SMALL_MARIO_FACTOR),
                   pygame.transform.scale_by(pygame.image.load(os.path.join(images_dir,"Mario_Small_Jump.png")),SMALL_MARIO_FACTOR),
@@ -72,7 +73,7 @@ CASTLE_IMGS=[pygame.transform.scale_by(pygame.image.load(os.path.join(images_dir
 FLAG_IMGS=[pygame.transform.scale_by(pygame.image.load(os.path.join(images_dir,"Flag.png")),FLAG_FACTOR),
            pygame.transform.scale_by(pygame.image.load(os.path.join(images_dir,"FlagPole.png")),FLAG_FACTOR)]
 
-class small_mario:
+class Small_mario:
     IMGS=SMALL_MARIO_IMGS
     WIDTH=SMALL_MARIO_IMGS[0].get_width()
     HEIGHT=SMALL_MARIO_IMGS[0].get_height()
@@ -89,11 +90,11 @@ class small_mario:
     def run_forward(self,flag): # flag is true if player is in left of screen else in right
         self.img_count+=1
         if flag:
-            self.x+=1
+            self.x+=3
         else:
             #all other objects move to the left with -0.5
             pass
-        if self.tick_count<self.ANIMATION_TIME:
+        if self.img_count<self.ANIMATION_TIME:
             self.img=self.IMGS[2]
         elif self.img_count < self.ANIMATION_TIME * 2:
             self.img = self.IMGS[3]
@@ -104,14 +105,10 @@ class small_mario:
         elif self.img_count == self.ANIMATION_TIME * 4 + 1:
             self.img = self.IMGS[2]
             self.img_count = 0
-    def run_backward(self,flag):
+    def run_backward(self):
         self.img_count += 1
-        if flag:
-            self.x -= 1
-        else:
-            # all other objects move to the left with -0.5
-            pass
-        if self.tick_count < self.ANIMATION_TIME:
+        self.x -= 3
+        if self.img_count < self.ANIMATION_TIME:
             self.img = pygame.transform.flip(self.IMGS[2],True,False)
         elif self.img_count < self.ANIMATION_TIME * 2:
             self.img = pygame.transform.flip(self.IMGS[3],True,False)
@@ -125,7 +122,7 @@ class small_mario:
     def move(self,flag2): # flag2 gets off when we land on platform or land
         if flag2:
             self.tick_count += 1
-            d = (-16.5) * self.tick_count + 1.5 * (self.tick_count) ** 2
+            d = (-16.5) * self.tick_count + 3 * (self.tick_count) ** 2
             self.y += d
             self.img=self.IMGS[1]
         if not flag2:
@@ -161,7 +158,7 @@ class Platform:
         max_x=self.x+self.BLOCK_WIDTH*len(self.blocks)
         # check for collision
         for i in range(len(platform_masks)):
-            offset=(round(self.x-obj.x),round(self.y-obj.y))
+            offset=(round(self.x+i*self.BLOCK_WIDTH-obj.x),round(self.y-obj.y))
             collision_point=obj_mask.overlap(platform_masks[i],offset)
             if collision_point:
                 if self.x>=obj.x+obj.WIDTH: #object is left to the platform
@@ -173,6 +170,7 @@ class Platform:
                     flag2=False
                 elif obj.x>=max_x: #object is right to the platform
                     self.x+=1
+                return flag2
         return flag2
 
 class Base:
@@ -185,26 +183,89 @@ class Base:
         self.y=y
         self.total_width=total_width
     def draw(self,window):
-        num_blocks=self.total_width/self.WIDTH+1
-        num_vertical_blocks=(window.get_height()-self.y)/self.HEIGHT+1
+        num_blocks=int(self.total_width/self.WIDTH)+1
+        num_vertical_blocks=int((window.get_height()-self.y)/self.HEIGHT)+1
         for i in range(num_blocks):
             for j in range(num_vertical_blocks):
                 window.blit(self.IMGS[0],(self.x+i*self.WIDTH,self.y+j*self.HEIGHT))
+                pygame.draw.rect(window, (0, 255, 0),
+                                 (self.x+i*self.WIDTH, self.y+j*self.HEIGHT, self.WIDTH+(i+1)*self.WIDTH, self.HEIGHT+(j+1)*self.HEIGHT),
+                                 2)  # Green for base
     def collide(self,obj,flag2):
-        obj_mask = obj.get_mask()
-def draw_window(window,s_mario):
-    s_mario.draw(window)
+        max_x=self.x+(int(self.total_width/self.WIDTH)+1)*self.WIDTH
+        for i in range(int(self.total_width / self.WIDTH) + 1):
+            if obj.x>self.x and obj.x<max_x and obj.y+obj.HEIGHT>=self.y:
+                obj.y=self.y-obj.HEIGHT-1
+                # print("hi")
+                return False
+        # print("bye")
+        return flag2
+
+        # obj_mask = obj.get_mask()
+        # base_mask=pygame.mask.from_surface(self.IMGS[0])
+        # for i in range(int(self.total_width/self.WIDTH)+1):
+        #     offset=(round(self.x+i*self.WIDTH-obj.x),round(self.y-obj.y))
+        #     collision_point = obj_mask.overlap(base_mask, offset)
+        #     if flag2:
+        #         print(offset)
+        #     if collision_point:
+        #         flag2=False
+        #         print("hi")
+        #         if obj.y+obj.HEIGHT>=self.y:
+        #             obj.y=self.y-obj.HEIGHT-1
+        #         return flag2
+        # return flag2
+    def move(self,flag):
+        if not flag:
+            self.x-=1
+
+STANDARD_BASE=Base(0,600,WIN_WIDTH)
+STANDARD_PLATFORM=Platform(350,500,[0,0,0,1,0])
+def draw_window(window,small_marios,platforms,bases):
+    window.fill((0,0,0))
+    for small_mario in small_marios:
+        small_mario.draw(window)
+        pygame.draw.rect(window, (255, 0, 0), (small_mario.x, small_mario.y, small_mario.WIDTH, small_mario.HEIGHT), 2)  # Red for obj
+    for platform in platforms:
+        platform.draw(window)
+    for base in bases:
+        base.draw(window)
     pygame.display.update()
 def main():
     window = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
     clock = pygame.time.Clock()
     run = True
-    s_mario=small_mario(200,200)
+    s_mario=Small_mario(100,600-SMALL_MARIO_IMGS[0].get_height())
+    platforms=[STANDARD_PLATFORM]
+    bases=[STANDARD_BASE]
+    s_marios=[s_mario]
+    flag=True
+    flag2=False
+    max=s_marios[0]
+    m=1
     while run:
         clock.tick(FRAME_RATE)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
-        draw_window(window,s_mario)
+        keys = pygame.key.get_pressed()
+        flag2_earlier=copy.deepcopy(flag2)
+        if keys[pygame.K_UP]:
+            flag2=s_mario.jump()
+        if keys[pygame.K_LEFT]:
+            s_mario.run_backward()
+        if s_mario.x>int(WIN_WIDTH/2):
+            flag=False
+        if keys[pygame.K_RIGHT]:
+            s_mario.run_forward(flag)
+            STANDARD_BASE.move(flag)
+            STANDARD_PLATFORM.move(flag)
+        s_mario.move(flag2)
+        if flag2_earlier!=STANDARD_PLATFORM.collide(s_mario,flag2) or flag2_earlier!=STANDARD_BASE.collide(s_mario,flag2):
+            flag2=not flag2_earlier
+            s_mario.img=s_mario.IMGS[0]
+        draw_window(window, s_marios, platforms, bases)
+
+
 main()
