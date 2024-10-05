@@ -6,9 +6,10 @@ import copy
 WIN_WIDTH=800
 WIN_HEIGHT=800
 
-RUN_CONSTANT=5
+RUN_CONSTANT=8
+JUMP_BOOST=4
 
-FRAME_RATE=30
+FRAME_RATE=20
 
 local_dir=os.path.dirname(__file__)
 images_dir=os.path.join(local_dir,"images")
@@ -141,7 +142,7 @@ class Small_mario:
             self.tick_co_ordinates=[(self.x,self.y)]
     def fall(self):
         self.tick_count += 1
-        d = 10 * (self.tick_count) ** 2
+        d = 14 * (self.tick_count) ** 2
         self.y += d
         if self.orientation == 1:
             self.img = self.IMGS[0]
@@ -190,14 +191,14 @@ class Platform:
                         if self.x>=obj.x+obj.WIDTH: #object is left to the platform
                             obj.x-=1
                             #no change in flag2
-                        elif obj.x+obj.WIDTH>self.x and obj.x<max_x+self.BLOCK_WIDTH:
+                        elif obj.x+obj.WIDTH>self.x and obj.x<max_x:
                             obj.y=self.y-obj.HEIGHT-1
                             flag2=False
                             flag_freefall=False
                             obj.tick_count = 0
                             obj.tick_co_ordinates = [(self.x, self.y)]
                             return flag2,flag_freefall
-                        elif obj.x>=max_x+self.BLOCK_WIDTH:
+                        elif obj.x>=max_x:
                             obj.x+=1
                     elif obj.tick_co_ordinates[0][1]+obj.HEIGHT>self.y:
                         if self.x>=obj.x+obj.WIDTH: #object is left to the platform
@@ -216,7 +217,7 @@ class Platform:
                             flag2=False
                             flag_freefall=False
                             obj.tick_count = 0
-                            obj.tick_co_ordinates = [(self.x, self.y)]
+                            obj.tick_co_ordinates = [(obj.x, obj.y)]
                             return flag2,flag_freefall
                             # print("hi!!!!!!!!!!")
                             # print("========================")
@@ -233,21 +234,124 @@ class Platform:
                     elif obj.x+obj.WIDTH>self.x and obj.x<max_x and self.y+self.BLOCK_HEIGHT<=obj.y: #object is below platform
                         obj.y-=1
                     elif obj.x + obj.WIDTH > self.x and obj.x < max_x and self.y >= obj.y+obj.HEIGHT: #object is above platform
+                        obj.y = self.y-obj.HEIGHT-1
                         flag2=False
                         flag_freefall=False
                         obj.tick_count = 0
-                        obj.tick_co_ordinates = [(self.x, self.y)]
+                        obj.tick_co_ordinates = [(obj.x, obj.y)]
                         return flag2,flag_freefall
                     elif obj.x>=max_x: #object is right to the platform
                         obj.x+=1
         return flag2,flag_freefall
     def fall_from_block(self,obj,flag_freefall):
         if obj.y<=self.y-obj.HEIGHT+2 and obj.y>=self.y-obj.HEIGHT-2:
-            print("hi")
             if obj.x<=self.x-obj.WIDTH and obj.x>=self.x-obj.WIDTH-RUN_CONSTANT-1:
                 flag_freefall=True
             elif obj.x>=self.x+len(self.blocks)*self.BLOCK_WIDTH and obj.x<=self.x+len(self.blocks)*self.BLOCK_WIDTH+RUN_CONSTANT+1:
-                print("wow wow")
+                flag_freefall=True
+        return flag_freefall
+
+class Pipe:
+    IMGS=PIPE_IMGS
+    BLOCK_WIDTH=PIPE_IMGS[0].get_width()
+    BLOCK_HEIGHT=PIPE_IMGS[0].get_height()
+
+    def __init__(self,x,y,blocks):
+        self.x=x
+        self.y=y
+        self.blocks=blocks #list of numbers: i represents PLATFORM_BLOCK_IMGS
+    def move(self,flag):
+        if not flag:
+            self.x-=RUN_CONSTANT
+    def move_reverse(self,flag):
+        if not flag:
+            self.x+=RUN_CONSTANT
+    def draw(self,window):
+        for i in range(len(self.blocks)):
+            window.blit(self.IMGS[self.blocks[i]],(self.x,self.y-(i+1)*self.BLOCK_HEIGHT))
+    def collide(self,obj,flag2,flag_freefall):
+        obj_mask=obj.get_mask()
+        platform_masks=[]
+        for i in range(len(self.blocks)):
+            platform_masks.append(pygame.mask.from_surface(self.IMGS[self.blocks[i]]))
+        max_y=self.y-self.BLOCK_HEIGHT*len(self.blocks)
+        # check for collision
+        for i in range(len(platform_masks)):
+            offset=(round(self.x-obj.x),round(self.y-(i+1)*self.BLOCK_HEIGHT-obj.y))
+            collision_point=obj_mask.overlap(platform_masks[i],offset)
+            if collision_point:
+                # print("wow")
+                if len(obj.tick_co_ordinates)>=2:
+                    if obj.tick_co_ordinates[0][1]+obj.HEIGHT<=max_y:
+                        if self.x>=obj.x+obj.WIDTH: #object is left to the platform
+                            obj.x=self.x-obj.WIDTH-1
+                            #no change in flag2
+                        elif obj.x+obj.WIDTH>self.x and obj.x<self.x+self.BLOCK_WIDTH:
+                            obj.y=max_y-obj.HEIGHT-1
+                            flag2=False
+                            flag_freefall=False
+                            obj.tick_count = 0
+                            obj.tick_co_ordinates = [(obj.x, obj.y)]
+                            return flag2,flag_freefall
+                        elif obj.x>=self.x+self.BLOCK_WIDTH:
+                            obj.x=self.x+self.BLOCK_WIDTH+1
+                    elif obj.tick_co_ordinates[0][1]+obj.HEIGHT>max_y:
+                        if self.x>=obj.x+obj.WIDTH: #object is left to the platform
+                            obj.x=self.x-obj.WIDTH-1
+                            #no change in flag2
+
+                        elif obj.x + obj.WIDTH > self.x and obj.x < self.x + self.BLOCK_WIDTH // 2 and max_y < obj.y + obj.HEIGHT and obj.tick_co_ordinates[-2][1]+obj.HEIGHT>max_y:
+                            obj.x=self.x-obj.WIDTH-1
+                        elif obj.x + obj.WIDTH > self.x and obj.x > self.x + self.BLOCK_WIDTH // 2 and obj.x < self.x + self.BLOCK_WIDTH and max_y < obj.y + obj.HEIGHT and obj.tick_co_ordinates[-2][1]+obj.HEIGHT>max_y:
+                            obj.x=self.x+self.BLOCK_WIDTH+1
+                        elif obj.x+obj.WIDTH>self.x and obj.x<self.x+self.BLOCK_WIDTH and obj.tick_co_ordinates[-2][1]+obj.HEIGHT<=max_y:
+                            obj.y=max_y-obj.HEIGHT-1
+                            flag2=False
+                            flag_freefall=False
+                            obj.tick_count = 0
+                            obj.tick_co_ordinates = [(obj.x, obj.y)]
+                            return flag2,flag_freefall
+                            # print("hi!!!!!!!!!!")
+                            # print("========================")
+                            # print(self.x, self.y, self.BLOCK_WIDTH, self.BLOCK_HEIGHT)
+                            # print(obj.x, obj.y, obj.WIDTH, obj.HEIGHT)
+                            # print(max_x)
+                            # print("========================")
+                        elif obj.x>=self.x+self.BLOCK_WIDTH:
+                            obj.x=self.x+self.BLOCK_WIDTH+1
+                else:
+                    # print("wow")
+                    if self.x>=obj.x+obj.WIDTH: #object is left to the platform
+                        obj.x=self.x-obj.WIDTH-1
+                        #no change in flag2
+                    # elif obj.x+obj.WIDTH>self.x and obj.x<self.x+self.BLOCK_WIDTH and max_y<=obj.y+obj.HEIGHT: #object is below platform
+                    #     obj.y-=1
+                    elif obj.x + obj.WIDTH > self.x and obj.x < self.x+self.BLOCK_WIDTH and max_y >= obj.y+obj.HEIGHT: #object is above platform
+                        obj.y = max_y - obj.HEIGHT - 1
+                        flag2=False
+                        flag_freefall=False
+                        obj.tick_count = 0
+                        obj.tick_co_ordinates = [(self.x, self.y)]
+                        return flag2,flag_freefall
+                    elif obj.x + obj.WIDTH > self.x and obj.x < self.x+self.BLOCK_WIDTH//2 and max_y < obj.y+obj.HEIGHT:
+                        obj.x=self.x-obj.WIDTH-1
+                        # obj.y = max_y - obj.HEIGHT - 1
+                        # flag2=False
+                        # flag_freefall=False
+                        # obj.tick_count = 0
+                        # obj.tick_co_ordinates = [(self.x, self.y)]
+                        # return flag2,flag_freefall
+                    elif obj.x + obj.WIDTH > self.x and obj.x > self.x + self.BLOCK_WIDTH // 2 and obj.x < self.x + self.BLOCK_WIDTH and max_y < obj.y + obj.HEIGHT:
+                        obj.x=self.x+self.BLOCK_WIDTH+1
+                    elif obj.x>=self.x+self.BLOCK_WIDTH: #object is right to the platform
+                        obj.x=self.x+self.BLOCK_WIDTH+1
+        return flag2,flag_freefall
+    def fall_from_block(self,obj,flag_freefall):
+        max_y = self.y - self.BLOCK_HEIGHT * len(self.blocks)
+        if obj.y<=max_y-obj.HEIGHT+2 and obj.y>=max_y-obj.HEIGHT-2:
+            if obj.x<=self.x-obj.WIDTH and obj.x>=self.x-obj.WIDTH-RUN_CONSTANT-1:
+                flag_freefall=True
+            elif obj.x>=self.x+self.BLOCK_WIDTH and obj.x<=self.x+self.BLOCK_WIDTH+RUN_CONSTANT+1:
                 flag_freefall=True
         return flag_freefall
 
@@ -266,15 +370,14 @@ class Base:
         for i in range(num_blocks):
             for j in range(num_vertical_blocks):
                 window.blit(self.IMGS[0],(self.x+i*self.WIDTH,self.y+j*self.HEIGHT))
-                pygame.draw.rect(window, (0, 255, 0),
-                                 (self.x+i*self.WIDTH, self.y+j*self.HEIGHT, self.WIDTH+(i+1)*self.WIDTH, self.HEIGHT+(j+1)*self.HEIGHT),
-                                 2)  # Green for base
+                # pygame.draw.rect(window, (0, 255, 0),
+                #                  (self.x+i*self.WIDTH, self.y+j*self.HEIGHT, self.WIDTH+(i+1)*self.WIDTH, self.HEIGHT+(j+1)*self.HEIGHT),
+                #                  2)  # Green for base
     def collide(self,obj,flag2,flag_freefall):
         max_x=self.x+(int(self.total_width/self.WIDTH)+1)*self.WIDTH
         for i in range(int(self.total_width / self.WIDTH) + 1):
-            if obj.x>self.x and obj.x<max_x and obj.y+obj.HEIGHT>=self.y:
+            if obj.x+obj.WIDTH>self.x and obj.x<max_x and obj.y+obj.HEIGHT>self.y+1:
                 obj.y=self.y-obj.HEIGHT-1
-                # print("hi")
                 flag2=False
                 flag_freefall=False
                 obj.tick_count = 0
@@ -305,7 +408,9 @@ class Base:
 
 STANDARD_BASE=Base(0,600,WIN_WIDTH)
 STANDARD_PLATFORM=Platform(350,500,[0,0,0,1,0])
-def draw_window(window,small_marios,platforms,bases):
+STANDARD_PLATFORM2=Platform(650,400,[0,0,0,1,0,1])
+STANDARD_PIPE=Pipe(200,600,[0,0,1])
+def draw_window(window,small_marios,platforms,bases,pipes):
     window.fill((0,0,0))
     for small_mario in small_marios:
         small_mario.draw(window)
@@ -314,54 +419,110 @@ def draw_window(window,small_marios,platforms,bases):
         platform.draw(window)
     for base in bases:
         base.draw(window)
+    for pipe in pipes:
+        pipe.draw(window)
     pygame.display.update()
+
+def callibrate(obj,platforms,bases,pipes,flag):
+    if not flag:
+        d=int(WIN_WIDTH//2)-obj.x
+        for platform in platforms:
+            platform.x+=d
+        for base in bases:
+            base.x+=d
+        for pipe in pipes:
+            pipe.x+=d
+        obj.x+=d
+
 def main():
     window = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
     clock = pygame.time.Clock()
     run = True
     s_mario=Small_mario(100,600-SMALL_MARIO_IMGS[0].get_height())
-    platforms=[STANDARD_PLATFORM]
+    platforms=[STANDARD_PLATFORM,STANDARD_PLATFORM2]
     bases=[STANDARD_BASE]
+    pipes=[STANDARD_PIPE]
     s_marios=[s_mario]
     flag=True
     flag2=False
     flag_freefall=False
+    t=0
     while run:
+        t+=1
         clock.tick(FRAME_RATE)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
         keys = pygame.key.get_pressed()
-        flag2_earlier=copy.deepcopy(flag2)
-        flag_freefall_earlier=copy.deepcopy(flag_freefall)
+        # flag2_earlier=copy.deepcopy(flag2)
+        # flag_freefall_earlier=copy.deepcopy(flag_freefall)
         if keys[pygame.K_UP]:
             flag2=s_mario.jump()
+            # if keys[pygame.K_LEFT]:
+            #     s_mario.x-=JUMP_BOOST
+            #     for base in bases:
+            #         base.x+=JUMP_BOOST
+            #     for platform in platforms:
+            #         platform.x+=JUMP_BOOST
+            # elif keys[pygame.K_RIGHT]:
+            #     s_mario.x+=JUMP_BOOST
+            #     for base in bases:
+            #         base.x-=JUMP_BOOST
+            #     for platform in platforms:
+            #         platform.x-=JUMP_BOOST
         if keys[pygame.K_LEFT]:
             s_mario.run_backward(flag)
-            STANDARD_BASE.move_reverse(flag)
-            STANDARD_PLATFORM.move_reverse(flag)
+            for base in bases:
+                base.move_reverse(flag)
+            for platform in platforms:
+                platform.move_reverse(flag)
+            for pipe in pipes:
+                pipe.move_reverse(flag)
         if s_mario.x>int(WIN_WIDTH/2):
             flag=False
         if keys[pygame.K_RIGHT]:
+            # print(s_mario.img_count)
             s_mario.run_forward(flag)
-            STANDARD_BASE.move(flag)
-            STANDARD_PLATFORM.move(flag)
+            for base in bases:
+                base.move(flag)
+            for platform in platforms:
+                platform.move(flag)
+            for pipe in pipes:
+                pipe.move(flag)
         s_mario.move(flag2)
         if flag_freefall:
             s_mario.fall()
-        flag_freefall = STANDARD_PLATFORM.fall_from_block(s_mario, flag_freefall)
-        new_flag,flag_freefall1=STANDARD_PLATFORM.collide(s_mario, flag2,flag_freefall)
-        new_flag2,flag_freefall2=STANDARD_BASE.collide(s_mario, flag2,flag_freefall)
-        if flag2_earlier!=new_flag or flag2_earlier!=new_flag2:
-            flag2=not flag2_earlier
-            if s_mario.orientation==1:
-                s_mario.img=s_mario.IMGS[0]
-            else:
-                s_mario.img=pygame.transform.flip(s_mario.IMGS[0],True,False)
-        if flag_freefall_earlier!=flag_freefall1 or flag_freefall_earlier!=flag_freefall2:
-            flag_freefall=not flag_freefall_earlier
-        draw_window(window, s_marios, platforms, bases)
+        for platform in platforms:
+            flag_freefall = platform.fall_from_block(s_mario, flag_freefall)
+            if flag_freefall:
+                break
+        for pipe in pipes:
+            flag_freefall = pipe.fall_from_block(s_mario, flag_freefall)
+            if flag_freefall:
+                break
+        for platform in platforms:
+            new_flag,flag_freefall1=platform.collide(s_mario, flag2,flag_freefall)
+            if not new_flag:
+                flag2=new_flag
+                # if s_mario.orientation == 1:
+                #     print("no no")
+                #     s_mario.img = s_mario.IMGS[0]
+                # else:
+                #     s_mario.img = pygame.transform.flip(s_mario.IMGS[0], True, False)
+                flag_freefall=flag_freefall1
+        for base in bases:
+            new_flag2, flag_freefall2 = base.collide(s_mario, flag2, flag_freefall)
+            if not new_flag2:
+                flag2 = new_flag2
+                flag_freefall = flag_freefall2
+        for pipe in pipes:
+            new_flag,flag_freefall1=pipe.collide(s_mario, flag2,flag_freefall)
+            if not new_flag:
+                flag2=new_flag
+                flag_freefall=flag_freefall1
+        callibrate(s_mario, platforms, bases, pipes, flag)
+        draw_window(window, s_marios, platforms, bases,pipes)
 
 
 main()
